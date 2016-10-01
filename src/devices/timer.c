@@ -212,7 +212,7 @@ timer_print_stats (void)
   printf ("Timer: %"PRId64" ticks\n", timer_ticks ());
 }
 
-/* Helper method used by timer interrupt to suspend the threads based on the elapsed ticks*/ 
+/* Helper method used by timer interrupt to suspend the threads based on the elapsed ticks*/
 static void
 execute_event (int64_t elapsed_ticks)
 {
