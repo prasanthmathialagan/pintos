@@ -236,6 +236,22 @@ timer_interrupt (struct intr_frame *args UNUSED)
 {
   ticks++;
   thread_tick ();
+
+  // For each tick, recent_cpu is incremented by 1 for the current thread.
+  struct thread* t = thread_current();
+  t->recent_cpu = t->recent_cpu + F;
+
+  if(timer_ticks() % 4 == 0)
+  {
+    compute_priority_for_all_threads ();
+  }
+
+  if(timer_ticks() % TIMER_FREQ == 0)
+  {
+    compute_recent_cpu_for_all_threads();
+    compute_load_avg();
+  }
+
   execute_event (ticks);
 }
 

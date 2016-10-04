@@ -24,6 +24,12 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+/* Floating point arithmetic*/
+#define F 16384 // 2^14
+#define F_BY_2 8192 // F/2
+#define FP_59_BY_60 16111 // Floating point arithetic value for 59/60
+#define FP_1_BY_60 273 // Floating point arithetic value for 1/60
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -93,6 +99,19 @@ struct thread
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
+    /*
+      recent_cpu measures how much CPU time each process has received "recently."
+      The initial value of recent_cpu is 0 in the first thread created, or the 
+        parent's value in other new threads. Each time a timer interrupt occurs, 
+        recent_cpu is incremented by 1 for the running thread only, unless the idle 
+        thread is running. In addition, once per second the value of recent_cpu is 
+        recalculated for every thread (whether running, ready, or blocked), using this formula:
+          recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice
+     */
+    int recent_cpu;
+
+    int nice;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
@@ -137,5 +156,9 @@ int thread_get_nice (void);
 void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
+
+void compute_load_avg (void);
+void compute_recent_cpu_for_all_threads (void);
+void compute_priority_for_all_threads (void);
 
 #endif /* threads/thread.h */
