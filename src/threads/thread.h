@@ -112,6 +112,13 @@ struct thread
 
     int nice;
 
+    bool priority_donation;
+    int priority_before_donation; // This is meaningful only if priority_donation = true;
+
+    struct list acquired_locks;
+
+    struct lock *waiting_lock;
+
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
