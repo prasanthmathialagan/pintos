@@ -387,6 +387,10 @@ yield_if_necessary(void)
 void
 thread_set_priority (int new_priority)
 {
+  thread_current ()->priority_before_donation = new_priority;
+  if(thread_current()->priority_donation)
+    return; // Do nothing
+
   thread_current ()->priority = new_priority;
   yield_if_necessary();
 }
@@ -531,6 +535,10 @@ init_thread (struct thread *t, const char *name, int priority)
     t->recent_cpu = 0; // It will be zero for the initial thread.
   else
     t->recent_cpu = thread_current()->recent_cpu; // inherit from the parent
+  t->priority_donation = false;
+  t->priority_before_donation = priority;
+  list_init(&t->acquired_locks);
+  t->waiting_lock = NULL;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();

@@ -185,6 +185,67 @@ lock_init (struct lock *lock)
 
   lock->holder = NULL;
   sema_init (&lock->semaphore, 1);
+  lock->priority_donation = false;
+}
+
+void set_priority_based_on_acquired_locks(struct thread* thread)
+{
+  if(list_empty(&thread->acquired_locks))
+  {
+    if(!thread->priority_donation)
+      return; // Ideal case without any priority donation
+
+    thread->priority_donation = false;
+    thread->priority = thread->priority_before_donation;
+  }
+  else
+  {
+    int max_priority = PRI_MIN;
+    bool priority_donation = false;
+    struct list_elem *curr;
+
+    for (curr = list_begin (&thread->acquired_locks); curr != list_end (&thread->acquired_locks);
+         curr = list_next (curr))
+    {
+      struct lock *l = list_entry (curr, struct lock, elem);
+      if(!l->priority_donation)
+        continue;
+      priority_donation = true;
+      if(max_priority < l->donated_priority)
+        max_priority = l->donated_priority;
+    }
+
+    if(priority_donation)
+    {
+      thread->priority = max_priority;
+    }
+    else
+    {
+      thread->priority_donation = false;
+      thread->priority = thread->priority_before_donation;
+    }
+  }
+}
+
+void donate_priority(struct thread* owner, struct lock* lock, int priority)
+{
+  if(owner->priority >= priority)
+    return;
+
+  owner->priority_donation = true;
+  lock->priority_donation = true;
+  lock->donated_priority = priority;
+
+  // Set the owner's priority to the max of the acquired locks with priority donation
+  set_priority_based_on_acquired_locks(owner);
+
+  // Check if the owner is waiting for a lock
+  struct lock* next_lock = owner->waiting_lock;
+  if(next_lock)
+  {
+    struct thread* next_owner = next_lock->holder;
+    donate_priority(next_owner, next_lock, priority);
+  }
 }
 
 /* Acquires LOCK, sleeping until it becomes available if
@@ -201,14 +262,25 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
-  //check lock holder
-  struct thread *curr_lock_holder = lock->holder;
-  if (curr_lock_holder->priority < thread_current ()->priority) {
-    //donate priority
-
+  
+  //check if anyone is holding the lock
+  struct thread *owner = lock->holder;
+  if(owner) 
+  {
+    int current_priority = thread_current()->priority;
+    // Add to your waiting lock
+    thread_current()->waiting_lock = lock;
+    donate_priority(owner, lock, current_priority);
   }
+  
   sema_down (&lock->semaphore);
-  lock->holder = thread_current ();
+
+  lock->holder = thread_current();
+
+  // Remove from the waiting lock
+  thread_current()->waiting_lock = NULL;
+  // Add the lock to the list of acquired locks
+  list_push_back(&thread_current()->acquired_locks, &lock->elem);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
@@ -243,6 +315,10 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
+  lock->priority_donation = false;
+  list_remove(&lock->elem);
+  struct thread* curr_thread = thread_current();
+  set_priority_based_on_acquired_locks(curr_thread);
   sema_up (&lock->semaphore);
 }
 
