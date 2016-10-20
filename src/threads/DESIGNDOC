@@ -103,53 +103,46 @@ struct semaphore_elem
 >> B2: Explain the data structure used to track priority donation.
 >> Use ASCII art to diagram a nested donation.  (Alternately, submit a
 >> .png file.)
-We are planning to add one list and a few additional attributes to the struct thread. The list will store the acquired lock. Also, the waiting lock along with the donated priority and original priority will be used to handle the nested donation scenario. For the multiple donation scenario, we are planning to maintain a queue of donated donations if the same thread has multiple locks which are blocking other high priority threads. 
+We have added one list and a few additional attributes to the struct thread. The list will store the locks being held by the current thread. Also, the waiting lock along with the donated priority and original priority has been used to handle the nested donation scenario. 
 
 struct thread
   {
 ……..
-    int priority_before_donation;     /* Used for priority donation */
-    bool has_donated_priority;        /* Used for priority donation */
-    struct list donated_priorities;   /* List of donated priorities for multiple donation */
-    struct list acquired_locks; /* List of locks acquired by the current thread */
-    struct lock    waiting_on_lock;    /* the lock on which the current thread is waiting */
+    bool priority_donation; //flag to indicate if this thread has a donated priority
+    int priority_before_donation; // This is meaningful only if priority_donation = true;
+    struct list acquired_locks; // list of locks currently being held by this thread
+    struct lock *waiting_lock; //the reference to the lock on which the current thread is waiting
 ……..
   };
 
-  /* Custom data structure to hold the donated priorities to a thread*/
-  struct donated_priorty_ds
-  {
-    int64_t donated_priorty;
-    struct list_elem donated_priorty_elem;
-  };
-
-High_Priority_Thread(40)  High_Priority_thread(40)
-           |                          |
-           |                          |
-           v                          v
-        +--+--+                    +--+--+
-        |  L  |                    |  L  |
-        +--+--+                    +--+--+
-           ^                          ^
-           |                          |
-Medium_Priority_thread(35) Medium_Priority_thread(40) +-------------------------------------+
-           |                          |               |                                     |
-           v                          v               | Once the thread are                 |
-        +--+--+                    +--+--+            | executed in Round Robin             |
-        |  L  |   -------------->  |  L  |            | fashion, we restore                 |
-        +--+--+   Donate Priority  +--+--+            | the priorities when each            |
-           ^                          ^               | thread releases its respective lock |
-           |                          |               |                                     |
-Low_Priority_thread(30)    Low_Priority_thread(40)    +-------------------------------------+
-           |                          |
-           v                          v
-        +--+--+                    +--+--+
-        |  L  |                    |  L  |
-        +--+--+                    +--+--+
-           ^                          ^
-           |                          |
-           |                          |
-Lowest_Priority_thread(10) Lowest_Priority_thread(40)
+High_Priority_Thread(40)            High_Priority_thread(40)
+           |                                  |
+           |                                  |
+           v                                  v
+        +--+--+                            +--+--+
+        |  L  |                            |  L  |
+        +--+--+                            +--+--+
+           |                                  |
+           |                                  |
+           v                                  v
+Medium_Priority_thread(35)          Medium_Priority_thread(40)+-------------------------------------+
+           |                                  |               |                                     |
+           v                                  v               | Once the threads are                |
+        +--+--+                            +--+--+            | executed in Round Robin             |
+        |  L  |        -------------->     |  L  |            | fashion, we restore                 |
+        +--+--+        -------------->     +--+--+            | the priorities when each            |
+           |            After Nested          |               | thread releases its respective      |
+           v             Donation             v               | lock                                |
+Low_Priority_thread(30)              Low_Priority_thread(40)  +-------------------------------------+
+           |                                  |
+           v                                  v
+        +--+--+                            +--+--+
+        |  L  |                            |  L  |
+        +--+--+                            +--+--+
+           |                                  |
+           |                                  |
+           v                                  v
+Lowest_Priority_thread(10)            Lowest_Priority_thread(40)
 
 
 
@@ -157,27 +150,30 @@ Lowest_Priority_thread(10) Lowest_Priority_thread(40)
 
 >> B3: How do you ensure that the highest priority thread waiting for
 >> a lock, semaphore, or condition variable wakes up first?
-Whenever a synchronization primitive intend to wake up a thread waiting on it, it gets the waiting thread with the highest priority from the waiters list and unblocks it i.e adds it to the ready list. Since thread_unblock method yields the current thread and calls schedule() if the thread’s priority is less than the highest priority. We have modified schedule() to pick up the highest priority thread to run next from the ready list. This ensures that the highest priority thread waiting for a lock, semaphore, or condition variable wakes up first.
+Whenever a synchronization primitive intends to wake up a thread waiting on it, it gets the waiting thread with the highest priority from the waiters list and unblocks it i.e adds it to the ready list. The thread_unblock method yields the current thread and calls schedule() if the thread’s priority is less than the highest priority. We have modified schedule() to pick up the highest priority thread to run next from the ready list. This ensures that the highest priority thread waiting for a lock, semaphore, or condition variable wakes up first.
 
 >> B4: Describe the sequence of events when a call to lock_acquire()
 >> causes a priority donation.  How is nested donation handled?
-a) If the current thread blocks on a lock, it will try to check the priority of the holder of the lock. Also, as mentioned earlier, this holder thread has a waiting_on_lock attribute which gives the lock, L2, on which the holder thread is blocked.
-b) We inspect L2 and see if the chain continues using the waiting_on_lock attribute of the holder threads.
+a) If the current thread blocks on a lock, it will try to check the priority of the holder of the lock. Also, as mentioned earlier, this holder thread has a waiting_lock attribute which gives the lock, L2, on which the holder thread is blocked.
+b) We inspect L2 and see if the chain continues using the waiting_lock attribute of the holder threads.
 c) Once, we reach the end we set the priorities of all the threads in this chain to the original thread’s priority using priority donation.
 d) Each thread uses the attribute defined for storing the original priority to restore the same on releasing the lock.
 
 
-
 >> B5: Describe the sequence of events when lock_release() is called
 >> on a lock that a higher-priority thread is waiting for.
-We may check if lock holder returns NULL, next step is to find thread with the highest priority in donation list, once it is found it will be placed in the ready queue, check if current is the highest priority thread else call thread_yield. 
+a) The first step is to set the current lock holder as NULL
+b) Then the flag related to priority donation i.e. priority_donation is set to false
+c) Then we remove this lock from the acquired list of the current thread  
+d) The final step is to reset the priority of the current thread as the concerned lock has been released. The new priority depends on the max priority amongst the other locks being held by the current thread. If no locks are being held then the original priority is restored.
+
 
 ---- SYNCHRONIZATION ----
 
 >> B6: Describe a potential race in thread_set_priority() and explain
 >> how your implementation avoids it.  Can you use a lock to avoid
 >> this race?
-In the case of multiple donation, two threads A and B try to set the priority of the main thread which owns both the locks required by these threads. We cannot use a lock to avoid this as the lock itself will lead to a chicken and egg situation. Instead, we set the priority to the highest one and maintain a list of donated priorities to handle the multiple donation scenario.
+In the case of multiple donations, two threads A and B with priorities higher than the main thread try to set the priority of the main thread which owns both the locks required by these threads. We cannot use a lock to avoid this as the lock itself will lead to a chicken and egg situation. Instead, we have disabled the interrupts for this corresponding piece of code in the lock_acquire function in order to handle such race conditions and context switches.
 
 ---- RATIONALE ----
 
