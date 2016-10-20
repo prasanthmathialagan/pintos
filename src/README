@@ -1,1 +1,10 @@
-README
+The following files have been modified for implementing and documenting Project 1:
+a) src/README
+b) src/devices/timer.c
+c) src/threads/DESIGNDOC
+d) src/threads/synch.c
+e) src/threads/synch.h
+f) src/threads/thread.c
+g) src/threads/thread.h
+
+Run the "make clean;make check" command to generate the test results under the src/threads/build directory.
