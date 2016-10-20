@@ -188,10 +188,10 @@ lock_init (struct lock *lock)
   lock->priority_donation = false;
 }
 
-/* We maintain a list of aquired lokcs for every thread.
-If this list is empty then the thread's attributs realted to priority donation are reset as
-there si no need of priority donation for this case.
-Else, we go through the list of acquired locks and set the converned thread's priority as the
+/* We maintain a list of acquired lokcs for every thread.
+If this list is empty then the thread's attributs related to priority donation are reset as
+there is no need of priority donation for this case.
+Else, we go through the list of acquired locks and set the concerned thread's priority as the
 maximum of the lock priorities. Here, it has to be noted that we maintian the priority value in each lock based on the
 lock holder thread's priority.
 */
@@ -345,7 +345,7 @@ lock_release (struct lock *lock)
   lock->holder = NULL;
   //We toggle the flag related to priority donation to false
   lock->priority_donation = false;
-  //we remove this lock fromt he acquired list
+  //we remove this lock from the acquired list
   list_remove(&lock->elem);
   struct thread* curr_thread = thread_current();
   //reset the priority of the current thread as the concerned lock has been released

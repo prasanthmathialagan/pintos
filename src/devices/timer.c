@@ -109,7 +109,7 @@ timer_sleep (int64_t ticks)
 
   ASSERT (intr_get_level () == INTR_ON);
   struct thread *cur_thread = thread_current ();
-  //calcualting the wake up time based on the ticks passed
+  //calculating the wake up time based on the ticks passed
   event_from_thread->wake_up_time = start + ticks;
   sema_init (&event_from_thread->sema_event, 0); //initialize the event semaphore
   event_from_thread->event_thread = cur_thread;
@@ -137,7 +137,7 @@ timer_sleep (int64_t ticks)
       }
     }
     //if the new event was not inserted in the list then push it in the end
-    //as it has the highet wake up time or the events list is empty.
+    //as it has the highest wake up time or the events list is empty.
   if (!inserted) {
 	  list_push_back (&all_events_list, &event_from_thread->event_elem);
   }
