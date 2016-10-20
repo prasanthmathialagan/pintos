@@ -63,9 +63,9 @@ bool thread_mlfqs;
   Estimates the average number of threads ready to run over the past minute.
   Once per second, it is updated according to the following formula:
     load_avg = (59/60)*load_avg + (1/60)*ready_threads
-  ready_threads is the number of threads that are either running or ready to run 
+  ready_threads is the number of threads that are either running or ready to run
     at time of update (not including the idle thread).
-  load_avg must be updated exactly when the system tick counter reaches a multiple 
+  load_avg must be updated exactly when the system tick counter reaches a multiple
     of a second, that is, when timer_ticks () % TIMER_FREQ == 0, and not at any other time.
 */
 static int load_avg = 0;
@@ -253,7 +253,7 @@ thread_unblock (struct thread *t)
   ASSERT (t->status == THREAD_BLOCKED);
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
-  
+
   //check max priority
   struct list_elem* e = list_max (&ready_list, priority_comparator, NULL);
   struct thread *higher_pt = list_entry(e, struct thread, elem);
@@ -383,6 +383,7 @@ void
 thread_set_priority (int new_priority)
 {
   thread_current ()->priority_before_donation = new_priority;
+  //if the current thread has undergone donation then do not set the priority
   if(thread_current()->priority_donation)
     return; // Do nothing
 
@@ -544,6 +545,7 @@ alloc_frame (struct thread *t, size_t size)
   return t->stack;
 }
 
+/* Helper method to compare the elements of the ready list based on their priorities*/
 bool priority_comparator (const struct list_elem *a,
                              const struct list_elem *b,
                              void *aux UNUSED)
@@ -664,7 +666,7 @@ allocate_tid (void)
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 /*
-  Computes the overall system's load average and updates the value in load_avg variable. This method 
+  Computes the overall system's load average and updates the value in load_avg variable. This method
   will be called from the interrupt handler i.e timer_interrupt(). It will be updated once every second.
   i.e timer_ticks()%TIMER_FREQ == 0.
 
@@ -672,7 +674,7 @@ uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
   This method has no effect if the mlfqs scheduler is not enabled.
 */
-void 
+void
 compute_load_avg (void)
 {
   if(thread_mlfqs == false)
@@ -686,7 +688,7 @@ compute_load_avg (void)
   load_avg = first_part + second_part;
 }
 
-static void 
+static void
 compute_recent_cpu(struct thread* t, void *aux)
 {
   ASSERT(thread_mlfqs);
@@ -700,7 +702,7 @@ compute_recent_cpu(struct thread* t, void *aux)
 }
 
 /*
-  Computes the recent_cpu of all the threads in the all_list. This method will be called from 
+  Computes the recent_cpu of all the threads in the all_list. This method will be called from
   the interrupt handler i.e timer_interrupt(). It will be updated once every second.
   i.e timer_ticks()%TIMER_FREQ == 0.
 
@@ -708,7 +710,7 @@ compute_recent_cpu(struct thread* t, void *aux)
 
   This method has no effect if the mlfqs scheduler is not enabled.
 */
-void 
+void
 compute_recent_cpu_for_all_threads (void)
 {
   if(thread_mlfqs == false)
@@ -722,7 +724,7 @@ compute_recent_cpu_for_all_threads (void)
 /*
   priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
 */
-static void 
+static void
 compute_priority_for_mlfqs(struct thread* t, void* aux UNUSED)
 {
   ASSERT(thread_mlfqs);
@@ -732,7 +734,7 @@ compute_priority_for_mlfqs(struct thread* t, void* aux UNUSED)
 }
 
 /*
-  Computes the priority of all the threads in the all_list. This method will be called from 
+  Computes the priority of all the threads in the all_list. This method will be called from
   the interrupt handler i.e timer_interrupt(). It will be updated once every fourth clock tick.
   i.e timer_ticks() % 4 == 0.
 
@@ -740,7 +742,7 @@ compute_priority_for_mlfqs(struct thread* t, void* aux UNUSED)
 
   This method has no effect if the mlfqs scheduler is not enabled.
 */
-void 
+void
 compute_priority_for_all_threads (void)
 {
   if(thread_mlfqs == false)

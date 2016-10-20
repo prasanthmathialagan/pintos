@@ -188,7 +188,14 @@ lock_init (struct lock *lock)
   lock->priority_donation = false;
 }
 
-static void 
+/* We maintain a list of aquired lokcs for every thread.
+If this list is empty then the thread's attributs realted to priority donation are reset as
+there si no need of priority donation for this case.
+Else, we go through the list of acquired locks and set the converned thread's priority as the
+maximum of the lock priorities. Here, it has to be noted that we maintian the priority value in each lock based on the
+lock holder thread's priority.
+*/
+static void
 set_priority_based_on_acquired_locks(struct thread* thread)
 {
   if(list_empty(&thread->acquired_locks))
@@ -215,7 +222,8 @@ set_priority_based_on_acquired_locks(struct thread* thread)
       if(max_priority < l->donated_priority)
         max_priority = l->donated_priority;
     }
-
+    //if atleast one of the acquired locks has a donated priority then we use that
+    //else we return by resetting the priority donation related attributes of the thread
     if(priority_donation)
     {
       thread->priority = max_priority;
@@ -228,7 +236,15 @@ set_priority_based_on_acquired_locks(struct thread* thread)
   }
 }
 
-static void 
+/* Helper method to handle nested and chained priority donation
+The steps are as follows:
+a) If the lock holder has a higher priority than the current thread's priority then return
+b) Else, we donate the priority to the thread using the locks acquired by it
+c) We do this by taking the max of the donated priorities to the concerned thread
+d) If the locks owner is waiting for a different lock then repeat the process
+till we reach the thread which is not waiting on any lock.
+*/
+static void
 donate_priority(struct thread* owner, struct lock* lock, int priority)
 {
   if(owner->priority >= priority)
@@ -264,21 +280,25 @@ lock_acquire (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
-  
+
   // This part of code can be accessed by multiple kernel threads at the same time.
   // Since we cannot use a lock here, we have to disable the interrupts.
   enum intr_level old_level = intr_disable ();
 
   //check if anyone is holding the lock
   struct thread *owner = lock->holder;
-  if(owner) 
+  //if there is a holding thread then we try to donate the priority
+  //also, till the lock is released by the holding thread we add this lock to the
+  //current threads's waiting lock attribute.
+  //then, we execute recursive priority donation on the lock holder thread
+  if(owner)
   {
     int current_priority = thread_current()->priority;
     // Add to your waiting lock
     thread_current()->waiting_lock = lock;
     donate_priority(owner, lock, current_priority);
   }
-  
+
   sema_down (&lock->semaphore);
 
   lock->holder = thread_current();
@@ -323,9 +343,13 @@ lock_release (struct lock *lock)
   ASSERT (lock_held_by_current_thread (lock));
 
   lock->holder = NULL;
+  //We toggle the flag related to priority donation to false
   lock->priority_donation = false;
+  //we remove this lock fromt he acquired list
   list_remove(&lock->elem);
   struct thread* curr_thread = thread_current();
+  //reset the priority of the current thread as the concerned lock has been released
+  //The new priority depends on the other locks being held by the current thread
   set_priority_based_on_acquired_locks(curr_thread);
   sema_up (&lock->semaphore);
 }

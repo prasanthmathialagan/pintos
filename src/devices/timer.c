@@ -39,7 +39,7 @@ struct event
 {
   int64_t wake_up_time;
   struct thread *event_thread;
-  struct semaphore sema_event;
+  struct semaphore sema_event; //used to block and unblock the thread
   struct list_elem event_elem;
 };
 
@@ -104,12 +104,14 @@ void
 timer_sleep (int64_t ticks)
 {
   int64_t start = timer_ticks ();
+  //initialize the event struct
   struct event *event_from_thread = malloc(sizeof(struct event));
 
   ASSERT (intr_get_level () == INTR_ON);
   struct thread *cur_thread = thread_current ();
+  //calcualting the wake up time based on the ticks passed
   event_from_thread->wake_up_time = start + ticks;
-  sema_init (&event_from_thread->sema_event, 0);
+  sema_init (&event_from_thread->sema_event, 0); //initialize the event semaphore
   event_from_thread->event_thread = cur_thread;
   int inserted = 0;
   struct list_elem *each_event;
@@ -120,6 +122,8 @@ timer_sleep (int64_t ticks)
   ASSERT (!intr_context ());
   old_level = intr_disable ();
 
+  //populating the events list based on the individual wake up times
+  //this helps in keeping the list sorted as per the wake up times of the events
   //referred line 37 of list.h
   for (each_event = list_begin (&all_events_list); each_event != list_end (&all_events_list);
        each_event = list_next (each_event))
@@ -132,6 +136,8 @@ timer_sleep (int64_t ticks)
         break;
       }
     }
+    //if the new event was not inserted in the list then push it in the end
+    //as it has the highet wake up time or the events list is empty.
   if (!inserted) {
 	  list_push_back (&all_events_list, &event_from_thread->event_elem);
   }

@@ -101,10 +101,10 @@ struct thread
 
     /*
       recent_cpu measures how much CPU time each process has received "recently."
-      The initial value of recent_cpu is 0 in the first thread created, or the 
-        parent's value in other new threads. Each time a timer interrupt occurs, 
-        recent_cpu is incremented by 1 for the running thread only, unless the idle 
-        thread is running. In addition, once per second the value of recent_cpu is 
+      The initial value of recent_cpu is 0 in the first thread created, or the
+        parent's value in other new threads. Each time a timer interrupt occurs,
+        recent_cpu is incremented by 1 for the running thread only, unless the idle
+        thread is running. In addition, once per second the value of recent_cpu is
         recalculated for every thread (whether running, ready, or blocked), using this formula:
           recent_cpu = (2*load_avg)/(2*load_avg + 1) * recent_cpu + nice
      */
@@ -112,12 +112,12 @@ struct thread
 
     int nice;
 
-    bool priority_donation;
+    bool priority_donation; //flag to indicate if this thread has a donated priority
     int priority_before_donation; // This is meaningful only if priority_donation = true;
 
-    struct list acquired_locks;
+    struct list acquired_locks; // list of locks currently being held by this thread
 
-    struct lock *waiting_lock;
+    struct lock *waiting_lock; //the reference to the lock on which the current thread is waiting
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
