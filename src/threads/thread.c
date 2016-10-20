@@ -234,11 +234,6 @@ thread_block (void)
   schedule ();
 }
 
-void print_thread(struct thread* t, void *aux UNUSED)
-{
-  printf("Thread with id %d, name %s and priority %d\n", t->tid, t->name, t->priority );
-}
-
 /* Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
@@ -367,7 +362,7 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
-void
+static void
 yield_if_necessary(void)
 {
   enum intr_level old_level = intr_disable ();
@@ -399,20 +394,14 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void)
 {
-  enum intr_level old_level = intr_disable ();
-  int p = thread_current ()->priority;
-  intr_set_level (old_level);
-  return p;
+  return thread_current ()->priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
 void
 thread_set_nice (int nice UNUSED)
 {
-  enum intr_level old_level = intr_disable ();
   thread_current ()->nice = nice;
-  intr_set_level (old_level);
-
   yield_if_necessary();
 }
 
@@ -427,9 +416,7 @@ thread_get_nice (void)
 int
 thread_get_load_avg (void)
 {
-  enum intr_level old_level = intr_disable ();
   int l = (load_avg * 100 + F_BY_2) / F;
-  intr_set_level (old_level);
   return l;
 }
 
@@ -437,10 +424,8 @@ thread_get_load_avg (void)
 int
 thread_get_recent_cpu (void)
 {
-  enum intr_level old_level = intr_disable ();
   int recent_cpu = thread_current()->recent_cpu;
   int l = (recent_cpu * 100 + F_BY_2) / F;
-  intr_set_level (old_level);
   return l;
 }
 
@@ -701,7 +686,7 @@ compute_load_avg (void)
   load_avg = first_part + second_part;
 }
 
-void 
+static void 
 compute_recent_cpu(struct thread* t, void *aux)
 {
   ASSERT(thread_mlfqs);
@@ -737,7 +722,7 @@ compute_recent_cpu_for_all_threads (void)
 /*
   priority = PRI_MAX - (recent_cpu / 4) - (nice * 2)
 */
-void 
+static void 
 compute_priority_for_mlfqs(struct thread* t, void* aux UNUSED)
 {
   ASSERT(thread_mlfqs);

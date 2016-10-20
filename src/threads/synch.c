@@ -188,7 +188,8 @@ lock_init (struct lock *lock)
   lock->priority_donation = false;
 }
 
-void set_priority_based_on_acquired_locks(struct thread* thread)
+static void 
+set_priority_based_on_acquired_locks(struct thread* thread)
 {
   if(list_empty(&thread->acquired_locks))
   {
@@ -227,7 +228,8 @@ void set_priority_based_on_acquired_locks(struct thread* thread)
   }
 }
 
-void donate_priority(struct thread* owner, struct lock* lock, int priority)
+static void 
+donate_priority(struct thread* owner, struct lock* lock, int priority)
 {
   if(owner->priority >= priority)
     return;
@@ -391,7 +393,7 @@ cond_wait (struct condition *cond, struct lock *lock)
   lock_acquire (lock);
 }
 
-bool compare_semaphore_elem_priority (const struct list_elem *a,
+static bool compare_semaphore_elem_priority (const struct list_elem *a,
                              const struct list_elem *b,
                              void *aux UNUSED)
 {
