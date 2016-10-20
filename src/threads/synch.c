@@ -265,6 +265,10 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
   
+  // This part of code can be accessed by multiple kernel threads at the same time.
+  // Since we cannot use a lock here, we have to disable the interrupts.
+  enum intr_level old_level = intr_disable ();
+
   //check if anyone is holding the lock
   struct thread *owner = lock->holder;
   if(owner) 
@@ -283,6 +287,8 @@ lock_acquire (struct lock *lock)
   thread_current()->waiting_lock = NULL;
   // Add the lock to the list of acquired locks
   list_push_back(&thread_current()->acquired_locks, &lock->elem);
+
+  intr_set_level (old_level);
 }
 
 /* Tries to acquires LOCK and returns true if successful or false
