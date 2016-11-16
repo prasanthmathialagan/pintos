@@ -88,7 +88,11 @@ start_process (void *file_name_)
 int
 process_wait (tid_t child_tid UNUSED) 
 {
-  while(1); // FIXME: Added for initial testing
+  // FIXME: Added for initial testing
+  uint32_t i = 50000000U;
+  while(i-- > 0);
+
+
 
   return -1;
 }
