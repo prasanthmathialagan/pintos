@@ -16,3 +16,4 @@ pintos -p ../../examples/cat -a cat -- -q
 pintos -p ../../examples/cp -a cp -- -q
 pintos -p ../../examples/ls -a ls -- -q
 pintos -p ../../examples/mkdir -a mkdir -- -q
+pintos -p ../../examples/halt -a halt -- -q
