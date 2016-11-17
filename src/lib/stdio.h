@@ -24,6 +24,7 @@ int putchar (int);
 int puts (const char *);
 
 /* Nonstandard functions. */
+void print_stack (void *esp, int frames, bool ascii);
 void hex_dump (uintptr_t ofs, const void *, size_t size, bool ascii);
 void print_human_readable_size (uint64_t sz);
 

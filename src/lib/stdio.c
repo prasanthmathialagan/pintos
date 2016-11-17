@@ -583,6 +583,52 @@ __printf (const char *format,
   __vprintf (format, args, output, aux);
   va_end (args);
 }
+
+void
+print_stack (void *esp, int frames, bool ascii)
+{
+  const uint8_t *buf = esp;
+  uintptr_t ofs = (uintptr_t)esp;
+
+  while (frames > 0)
+  {
+    size_t start, end, n;
+    size_t i;
+    
+    start = ofs % 4;
+    end = 4;
+    if (end - start > 4)
+      end = start + 4;
+    n = end - start;
+
+    /* Print line. */
+    printf ("%08jx  ", (uintmax_t) ROUND_DOWN (ofs, 4));
+    for (i = 0; i < start; i++)
+      printf ("   ");
+    for (; i < end; i++) 
+      printf ("%02hhx%c", buf[i - start], ' ');
+    if (ascii) 
+    {
+      for (; i < 4; i++)
+        printf ("   ");
+      printf ("|");
+      for (i = 0; i < start; i++)
+        printf (" ");
+      for (; i < end; i++)
+        printf ("%c",
+                isprint (buf[i - start]) ? buf[i - start] : '.');
+      for (; i < 4; i++)
+        printf (" ");
+      printf ("|");
+    }
+    printf ("\n");
+
+    ofs -= n;
+    buf -= n;
+    frames--;
+  }
+}
+
 
 /* Dumps the SIZE bytes in BUF to the console as hex bytes
    arranged 16 per line.  Numeric offsets are also included,
