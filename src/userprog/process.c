@@ -17,6 +17,7 @@
 #include "threads/palloc.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
@@ -45,6 +46,88 @@ process_execute (const char *file_name)
   return tid;
 }
 
+/* Method for parsing the command line arguments */
+static void
+parse_cla (char *file_name, void *esp) 
+{  
+  void *initial_sp = esp;
+  //Referenced from string.c
+  char *token, *save_ptr, *fn_arr[20]; //hard coding the no of parameters
+  int counter = 0;
+  
+  for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
+       token = strtok_r (NULL, " ", &save_ptr)) {
+    fn_arr[counter] = token;
+    counter++;
+  }
+  
+  uint32_t arg_addresses[counter];
+  int arg_counter = 0;
+  
+  char padding [4];
+  //counter corresponds to the number of arguments
+  while (counter > 0) {
+    char * curr_argument = fn_arr[--counter];
+    if (strlen(curr_argument) % 4 != 0) {
+      //pad zeroes in the end
+      int padding_needed = (4 - (strlen(curr_argument) % 4));
+      //TODO fix this print -- removing it breaks the code
+      printf ("Padding needed: %d\n", padding_needed);
+      //setting the padding char as .
+      memset (padding, '.', padding_needed);
+      strlcat(curr_argument, padding, (strlen(curr_argument) + padding_needed + 1));
+    }
+    int start = strlen(curr_argument) - 4;
+    char arg_part[4];
+    
+    while (start >= 0) {
+      int r = 0, p = start;
+      for (; r < 4; r++, p++) {
+        arg_part[r] = curr_argument[p];
+      }
+      memcpy (esp, arg_part, 4);
+      esp = esp - 4;
+      start = start - 4;
+    }
+    //saving the current address of esp
+    arg_addresses[arg_counter++] = (uint32_t *)(esp + 4); //TODO hacky + 4
+  }
+  
+  //storing the sentinel
+  *((int*)esp) = 0;
+  esp = esp - 4;
+  
+  //writing the current address
+  int a = 0;
+  for (; a < arg_counter; a++) {
+    *((uint32_t *)esp) = arg_addresses[a];
+    esp = esp - 4;
+  }
+  
+  *((uint32_t *)esp) = (uint32_t *)(esp + 4);//TODO hacky +4
+  esp = esp - 4;
+  
+  //storing argc
+  *((int*)esp) = arg_counter;
+  print_stack (initial_sp, 15, true);
+  esp = esp - 4;
+}
+
+/* Function to parse the file name */
+static char *
+parse_fname (char *file_name) 
+{  
+  //Referenced from string.c
+  char *token, *save_ptr, *fname;
+  
+  for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
+       token = strtok_r (NULL, " ", &save_ptr)) {
+    fname = token;
+    break;
+  }
+  return fname;
+}
+
 /* A thread function that loads a user process and starts it
    running. */
 static void
@@ -59,10 +142,23 @@ start_process (void *file_name_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
-  success = load (file_name, &if_.eip, &if_.esp);
+  
+  char *fn_copy, *fn_copy2;
+  fn_copy = palloc_get_page (0);
+  fn_copy2 = palloc_get_page (0);
+  strlcpy (fn_copy, file_name, PGSIZE);
+  strlcpy (fn_copy2, file_name, PGSIZE);
+  
+  char *file_name_parsed = parse_fname (fn_copy);
+  success = load (file_name_parsed, &if_.eip, &if_.esp);
+  if (success) {
+      parse_cla (fn_copy2, &if_.esp);
+  }
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
+  palloc_free_page (fn_copy);
+  palloc_free_page (fn_copy2);
   if (!success) 
     thread_exit ();
 
@@ -443,10 +539,7 @@ setup_stack (void **esp)
     {
       success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
       if (success)
-      {
-        // *esp = PHYS_BASE;
-        *esp = PHYS_BASE - 12; // FIXME: Added for basic working
-      }
+        *esp = PHYS_BASE;
       else
         palloc_free_page (kpage);
     }
