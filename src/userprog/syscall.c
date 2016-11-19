@@ -8,7 +8,11 @@
 #include "lib/kernel/console.h"
 #include "devices/shutdown.h"
 
+#include "filesys/file.h"
+#include "filesys/filesys.h"
+
 static void syscall_handler (struct intr_frame *);
+
 
 void
 syscall_init (void) 
@@ -134,10 +138,14 @@ int wait(pid_t pid UNUSED)
   return -1;
 }
 
-bool create(const char* file UNUSED, unsigned initial_size UNUSED)
+bool create(const char* file, unsigned initial_size)
 {
-	// TODO
-  return false;
+	// new code here
+  if (!file) 
+  {
+    return false;
+  }
+  return filesys_create(file, initial_size);
 }
 
 bool remove(const char* file UNUSED)
@@ -152,10 +160,9 @@ int open(const char* file UNUSED)
   return -1;
 }
 
-int filesize(int fd UNUSED)
+int filesize(int fd)
 {
 	// TODO
-  return -1;
 }
 
 int read(int fd UNUSED, void* buffer UNUSED, unsigned size UNUSED)
@@ -185,7 +192,6 @@ void seek(int fd UNUSED, unsigned position UNUSED)
 unsigned tell(int fd UNUSED)
 {
 	// TODO
-  return -1;
 }
 
 void close(int fd UNUSED)
