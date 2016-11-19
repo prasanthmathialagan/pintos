@@ -48,8 +48,9 @@ process_execute (const char *file_name)
 
 /* Method for parsing the command line arguments */
 static void
-parse_cla (char *file_name, void *esp) 
+parse_cla (char *file_name, void **stack_pointer) 
 {  
+  void *esp = *stack_pointer;
   void *initial_sp = esp;
   //Referenced from string.c
   char *token, *save_ptr, *fn_arr[20]; //hard coding the no of parameters
@@ -109,8 +110,9 @@ parse_cla (char *file_name, void *esp)
   
   //storing argc
   *((int*)esp) = arg_counter;
-  print_stack (initial_sp, 15, true);
   esp = esp - 4;
+
+  *stack_pointer = esp;
 }
 
 /* Function to parse the file name */
@@ -151,9 +153,12 @@ start_process (void *file_name_)
   
   char *file_name_parsed = parse_fname (fn_copy);
   success = load (file_name_parsed, &if_.eip, &if_.esp);
+  void* initial_sp = if_.esp;
+  print_stack(initial_sp, 10, true);
   if (success) {
       parse_cla (fn_copy2, &if_.esp);
   }
+  print_stack(initial_sp, 15, true);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
