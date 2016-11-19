@@ -6,7 +6,7 @@
 void syscall_init (void);
 
 void halt(void);
-void exit(int status);
+void exit_(int status);
 pid_t exec(const char* cmd_line);
 int wait(pid_t pid);
 

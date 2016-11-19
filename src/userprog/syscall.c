@@ -1,4 +1,5 @@
 #include "userprog/syscall.h"
+#include "userprog/process.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
@@ -18,7 +19,7 @@ syscall_init (void)
 /*
   Helper method for write system call.
 */
-static void write_ (struct intr_frame *f)
+static void write_h (struct intr_frame *f)
 {
   void* sp = f->esp;
   
@@ -37,19 +38,28 @@ static void write_ (struct intr_frame *f)
   f->eax = bytes;
 }
 
+static void exit_h(struct intr_frame *f)
+{
+  void* sp = f->esp;
+
+  int status = *(int*)(sp + 4);
+  f->eax = status;
+
+  exit_(status);
+}
+
 static void
 syscall_handler (struct intr_frame *f) 
 { 
-  printf("System call!!!!!!!!!!!!!!!\n");
   int *sys_call = f->esp;
-  printf ("System call!!! Number = %d\n", *sys_call);
+  // printf ("System call!!! Number = %d\n", *sys_call);
   switch(*sys_call)
   {
   	case SYS_HALT: // 0
   		halt();
   		break;
   	case SYS_EXIT: // 1
-  		// TODO
+      exit_h(f);
   		break;
   	case SYS_EXEC: // 2
   		// TODO
@@ -73,7 +83,7 @@ syscall_handler (struct intr_frame *f)
   		// TODO
   		break;
   	case SYS_WRITE: // 9
-      write_(f);
+      write_h(f);
   		break;
   	case SYS_SEEK: // 10
   		// TODO
@@ -96,44 +106,62 @@ void halt(void)
 	shutdown_power_off();
 }
 
-void exit(int status)
+void exit_(int status)
 {
-	// TODO
+  char proc_name[20];
+  char* tname = thread_name();
+  int i = 0;
+  while(tname[i] != ' ' && tname[i] != '\0')
+  {
+    proc_name[i] = tname[i];
+    i++;
+  }
+  proc_name[i] = '\0';
+
+  printf("%s: exit(%d)\n", proc_name, status);
+  thread_exit();
 }
 
-pid_t exec(const char* cmd_line)
+pid_t exec(const char* cmd_line UNUSED)
 {
 	// TODO
+  return -1;
 }
 
-int wait(pid_t pid)
+int wait(pid_t pid UNUSED)
 {
 	// TODO
+  return -1;
 }
 
-bool create(const char* file, unsigned initial_size)
+bool create(const char* file UNUSED, unsigned initial_size UNUSED)
 {
 	// TODO
+  return false;
 }
 
-bool remove(const char* file)
+bool remove(const char* file UNUSED)
 {
 	// TODO
+  return false;
 }
 
-int open(const char* file)
+int open(const char* file UNUSED)
 {
 	// TODO
+  return -1;
 }
 
-int filesize(int fd)
+int filesize(int fd UNUSED)
 {
 	// TODO
+  return -1;
 }
 
-int read(int fd, void* buffer, unsigned size)
+int read(int fd UNUSED, void* buffer UNUSED, unsigned size UNUSED)
 {
 	// TODO
+  return -1;
 }
 
 int write(int fd, const void* buffer, unsigned size)
@@ -149,17 +177,18 @@ int write(int fd, const void* buffer, unsigned size)
   return -1;
 }
 
-void seek(int fd, unsigned position)
+void seek(int fd UNUSED, unsigned position UNUSED)
 {
 	// TODO
 }
 
-unsigned tell(int fd)
+unsigned tell(int fd UNUSED)
 {
 	// TODO
+  return -1;
 }
 
-void close(int fd)
+void close(int fd UNUSED)
 {
 	// TODO
 }

@@ -42,7 +42,7 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
-    palloc_free_page (fn_copy); 
+    palloc_free_page (fn_copy);
   return tid;
 }
 
@@ -51,83 +51,63 @@ static void
 parse_cla (char *file_name, void **stack_pointer) 
 {  
   void *esp = *stack_pointer;
-  void *initial_sp = esp;
+
   //Referenced from string.c
-  char *token, *save_ptr, *fn_arr[20]; //hard coding the no of parameters
-  int counter = 0;
-  
+  char *token, *save_ptr, *fn_arr[MAX_ARGS]; //hard coding the no of parameters
+  int argc = 0;
   for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
        token = strtok_r (NULL, " ", &save_ptr)) {
-    fn_arr[counter] = token;
-    counter++;
+    fn_arr[argc] = token;
+    argc++;
+  }
+
+  // Compute the length including null characters and padding
+  int i;
+  int length = 0;
+  for(i = 0; i < argc; i++) {
+    length += strlen(fn_arr[i]) + 1;
+  }
+  if(length % 4 != 0) {
+    length = length + (4 - (length % 4));
+  }
+
+  // Move the stack pointer to current location - length
+  esp = esp - length;
+
+  // Append the characters and note down the memory locations
+  uint32_t arg_addresses[MAX_ARGS];
+  int pivot = 0;
+  for(i = 0; i < argc; i++) {
+    char *str = fn_arr[i];
+    strlcpy(esp + pivot, str, strlen(str) + 1);
+    arg_addresses[i] = (uint32_t) (esp + pivot);
+    pivot = pivot + strlen(str) + 1;
   }
   
-  uint32_t arg_addresses[counter];
-  int arg_counter = 0;
-  
-  char padding [4];
-  //counter corresponds to the number of arguments
-  while (counter > 0) {
-    char * curr_argument = fn_arr[--counter];
-    if (strlen(curr_argument) % 4 != 0) {
-      //pad zeroes in the end
-      int padding_needed = (4 - (strlen(curr_argument) % 4));
-      //TODO fix this print -- removing it breaks the code
-      printf ("Padding needed: %d\n", padding_needed);
-      //setting the padding char as .
-      memset (padding, '.', padding_needed);
-      strlcat(curr_argument, padding, (strlen(curr_argument) + padding_needed + 1));
-    }
-    int start = strlen(curr_argument) - 4;
-    char arg_part[4];
-    
-    while (start >= 0) {
-      int r = 0, p = start;
-      for (; r < 4; r++, p++) {
-        arg_part[r] = curr_argument[p];
-      }
-      memcpy (esp, arg_part, 4);
-      esp = esp - 4;
-      start = start - 4;
-    }
-    //saving the current address of esp
-    arg_addresses[arg_counter++] = (uint32_t *)(esp + 4); //TODO hacky + 4
-  }
-  
-  //storing the sentinel
-  *((int*)esp) = 0;
+  // Sentinel
   esp = esp - 4;
+  *((int *) esp) = 0;
   
-  //writing the current address
-  int a = 0;
-  for (; a < arg_counter; a++) {
-    *((uint32_t *)esp) = arg_addresses[a];
+  // Addresses
+  for (i = argc - 1; i >= 0; i--) {
     esp = esp - 4;
+    *((uint32_t *) esp) = arg_addresses[i];
   }
   
-  *((uint32_t *)esp) = (uint32_t *)(esp + 4);//TODO hacky +4
+  // argv address
+  uint32_t argv_address = (uint32_t) esp;
   esp = esp - 4;
+  *((uint32_t *) esp) = argv_address;
+ 
+  // argc
+  esp = esp - 4;
+  *((int*)esp) = argc;
   
-  //storing argc
-  *((int*)esp) = arg_counter;
+  // Fake return address
   esp = esp - 4;
+  *((int*)esp) = 0;
 
   *stack_pointer = esp;
-}
-
-/* Function to parse the file name */
-static char *
-parse_fname (char *file_name) 
-{  
-  //Referenced from string.c
-  char *token, *save_ptr, *fname;
-  
-  for (token = strtok_r (file_name, " ", &save_ptr); token != NULL;
-       token = strtok_r (NULL, " ", &save_ptr)) {
-    fname = token;
-    break;
-  }
-  return fname;
 }
 
 /* A thread function that loads a user process and starts it
@@ -151,14 +131,15 @@ start_process (void *file_name_)
   strlcpy (fn_copy, file_name, PGSIZE);
   strlcpy (fn_copy2, file_name, PGSIZE);
   
-  char *file_name_parsed = parse_fname (fn_copy);
+  char *save_ptr;
+  char *file_name_parsed = strtok_r (fn_copy, " ", &save_ptr);
   success = load (file_name_parsed, &if_.eip, &if_.esp);
-  void* initial_sp = if_.esp;
-  print_stack(initial_sp, 10, true);
+  // void* initial_sp = if_.esp;
+  // print_stack(initial_sp, 10, true);
   if (success) {
       parse_cla (fn_copy2, &if_.esp);
   }
-  print_stack(initial_sp, 15, true);
+  // print_stack(initial_sp, 15, true);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
