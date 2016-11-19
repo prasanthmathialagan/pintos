@@ -108,17 +108,9 @@ void halt(void)
 
 void exit_(int status)
 {
-  char proc_name[20];
-  char* tname = thread_name();
-  int i = 0;
-  while(tname[i] != ' ' && tname[i] != '\0')
-  {
-    proc_name[i] = tname[i];
-    i++;
-  }
-  proc_name[i] = '\0';
-
-  printf("%s: exit(%d)\n", proc_name, status);
+  struct process* proc = get_process(thread_current()->tid);
+  proc->status = status;
+  printf("%s: exit(%d)\n", proc->name, proc->status);
   thread_exit();
 }
 

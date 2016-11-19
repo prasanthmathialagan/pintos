@@ -18,9 +18,19 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "threads/synch.h"
+
+static struct list proc_list;
+static struct lock proc_list_lock;
 
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
+
+void process_init()
+{
+  list_init(&proc_list);
+  lock_init(&proc_list_lock);
+}
 
 /* Starts a new thread running a user program loaded from
    FILENAME.  The new thread may be scheduled (and may even exit)
@@ -42,7 +52,34 @@ process_execute (const char *file_name)
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
   if (tid == TID_ERROR)
+  {
     palloc_free_page (fn_copy);
+  }
+  else
+  {
+    struct process *p = malloc(sizeof(struct process));
+    p->pid = tid;
+
+    // Copy the first part of the cmd without the arguments
+    int i = 0;
+    while(file_name[i] != ' ' && file_name[i] != '\0')
+    {
+      p->name[i] = file_name[i];
+      i++;
+    }
+    p->name[i] = '\0';
+
+    p->alive = true;
+    p->status = -1;
+
+    lock_init(&p->lock);
+    cond_init(&p->condition);
+
+    lock_acquire(&proc_list_lock);
+    list_push_back(&proc_list, &p->elem);
+    lock_release(&proc_list_lock);
+  }
+
   return tid;
 }
 
@@ -168,15 +205,36 @@ start_process (void *file_name_)
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
 int
-process_wait (tid_t child_tid UNUSED) 
+process_wait (tid_t child_tid) 
 {
-  // FIXME: Added for initial testing
-  uint32_t i = 50000000U;
-  while(i-- > 0);
-
-
+  struct process *p = get_process(child_tid);
+  if(p)
+  {
+    lock_acquire(&p->lock);
+    cond_wait(&p->condition, &p->lock);
+    lock_release(&p->lock);
+    return p->status;
+  }
 
   return -1;
+}
+
+struct process* get_process(pid_t pid)
+{
+  lock_acquire(&proc_list_lock);
+  struct list_elem *e;
+  struct process* p = NULL;
+  for (e = list_begin (&proc_list); e != list_end (&proc_list); e = list_next (e))
+  {
+    struct process *proc = list_entry (e, struct process, elem);
+    if(proc->pid == pid)
+    {
+      p = proc;
+      break;
+    }
+  }
+  lock_release(&proc_list_lock);
+  return p;
 }
 
 /* Free the current process's resources. */
@@ -202,6 +260,36 @@ process_exit (void)
       pagedir_activate (NULL);
       pagedir_destroy (pd);
     }
+
+  lock_acquire(&proc_list_lock);
+  struct list_elem *e;
+  struct process *p = NULL;
+  for (e = list_begin (&proc_list); e != list_end (&proc_list); e = list_next (e))
+  {
+    struct process *proc = list_entry (e, struct process, elem);
+    if(proc->pid == cur->tid)
+    {
+      p = proc;
+      break;
+    }
+  }
+
+  if(!p)
+  {
+    printf("There is no process with pid = %d\n", cur->tid);
+  }
+  else
+  {
+    list_remove(&p->elem);
+    p->alive = false;
+  }
+
+  lock_release(&proc_list_lock);
+
+  // Signal all waiters
+  lock_acquire(&p->lock);
+  cond_broadcast(&p->condition, &p->lock);
+  lock_release(&p->lock);
 }
 
 /* Sets up the CPU for running user code in the current
