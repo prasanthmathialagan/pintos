@@ -6,6 +6,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "lib/kernel/console.h"
+#include "lib/string.h"
 #include "devices/shutdown.h"
 
 #include "filesys/file.h"
@@ -52,6 +53,38 @@ static void exit_h(struct intr_frame *f)
   exit_(status);
 }
 
+static void exec_h(struct intr_frame *f)
+{
+  void* sp = f->esp;
+
+  uint32_t p = *(uint32_t *)(sp + 4);
+  char* args = (char*) p;
+
+  pid_t pid = exec_(args);
+  f->eax = pid;
+}
+
+static void wait_h(struct intr_frame *f)
+{
+  void* sp = f->esp;
+
+  pid_t pid = *(pid_t*)(sp + 4);
+  int status = wait_(pid);
+  f->eax = status;
+}
+
+static void create_h(struct intr_frame *f)
+{
+  void* sp = f->esp;
+
+  uint32_t p = *(uint32_t *)(sp + 4);
+  char* file_name = (char*) p;
+
+  unsigned size = *(unsigned *)(sp + 8);
+  bool result = create_(file_name, size);
+  f->eax = result;
+}
+
 static void
 syscall_handler (struct intr_frame *f) 
 { 
@@ -66,13 +99,13 @@ syscall_handler (struct intr_frame *f)
       exit_h(f);
   		break;
   	case SYS_EXEC: // 2
-  		// TODO
+      exec_h(f);
   		break;
   	case SYS_WAIT: // 3
-  		// TODO
+      wait_h(f);
   		break;
   	case SYS_CREATE: // 4
-  		// TODO
+      create_h(f);
   		break;
   	case SYS_REMOVE: // 5
   		// TODO
@@ -118,25 +151,23 @@ void exit_(int status)
   thread_exit();
 }
 
-pid_t exec(const char* cmd_line UNUSED)
+pid_t exec_(const char* cmd_line)
 {
-	// TODO
-  return -1;
+  return process_execute(cmd_line);
 }
 
-int wait(pid_t pid UNUSED)
+int wait_(pid_t pid)
 {
-	// TODO
-  return -1;
+	return process_wait(pid);
 }
 
-bool create(const char* file, unsigned initial_size)
+bool create_(const char* file, unsigned initial_size)
 {
-	// new code here
-  if (!file) 
+  if (!file || strlen(file) == 0) 
   {
-    return false;
+    exit_(-1);
   }
+
   return filesys_create(file, initial_size);
 }
 
