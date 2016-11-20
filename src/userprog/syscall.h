@@ -11,13 +11,13 @@ pid_t exec_(const char* cmd_line);
 int wait_(pid_t pid);
 
 bool create_(const char* file, unsigned initial_size);
-bool remove(const char* file);
-int open(const char* file);
-int filesize(int fd);
-int read(int fd, void* buffer, unsigned size);
+bool remove_(const char* file);
+int open_(const char* file);
+int filesize_(int fd);
+int read_(int fd, void* buffer, unsigned size);
 int write(int fd, const void* buffer, unsigned size);
-void seek(int fd, unsigned position);
-unsigned tell(int fd);
-void close(int fd);
+void seek_(int fd, unsigned position);
+unsigned tell_(int fd);
+void close_(int fd);
 
 #endif /* userprog/syscall.h */

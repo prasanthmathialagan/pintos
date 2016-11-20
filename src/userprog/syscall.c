@@ -43,6 +43,21 @@ static void write_h (struct intr_frame *f)
   f->eax = bytes;
 }
 
+static void read_h (struct intr_frame *f)
+{
+  void* sp = f->esp;
+  
+  int fd = *(int*)(sp + 4);
+  
+  uint32_t p = *(uint32_t *)(sp + 8);
+  void* buffer = (void*) p;
+  
+  unsigned size = *(unsigned *)(sp + 12);
+  
+  int bytes = read_ (fd, buffer, size);
+  f->eax = bytes;
+}
+
 static void exit_h(struct intr_frame *f)
 {
   void* sp = f->esp;
@@ -85,11 +100,68 @@ static void create_h(struct intr_frame *f)
   f->eax = result;
 }
 
+static void remove_h(struct intr_frame *f)
+{
+  void* sp = f->esp;
+
+  uint32_t p = *(uint32_t *)(sp + 4);
+  char* file_name = (char*) p;
+
+  bool result = remove_(file_name);
+  f->eax = result;
+}
+
+static void open_h(struct intr_frame *f)
+{
+  void* sp = f->esp;
+
+  uint32_t p = *(uint32_t *)(sp + 4);
+  char* file_name = (char*) p;
+
+  int fd = open_(file_name);
+  f->eax = fd;
+}
+
+static void filesize_h(struct intr_frame *f)
+{
+  void* sp = f->esp;
+
+  int fd = *(int*)(sp + 4);
+  int bytes = filesize_(fd);
+  f->eax = bytes;
+}
+
+static void seek_h (struct intr_frame *f)
+{
+  void* sp = f->esp;
+  
+  int fd = *(int*)(sp + 4);
+  unsigned position = *(unsigned *)(sp + 12);
+  
+  seek_ (fd, position);
+}
+
+static void tell_h(struct intr_frame *f)
+{
+  void* sp = f->esp;
+
+  int fd = *(int*)(sp + 4);
+  unsigned position = tell_(fd);
+  f->eax = position;
+}
+
+static void close_h(struct intr_frame *f)
+{
+  void* sp = f->esp;
+
+  int fd = *(int*)(sp + 4);
+  close_(fd);
+}
+
 static void
 syscall_handler (struct intr_frame *f) 
 { 
   int *sys_call = f->esp;
-  // printf ("System call!!! Number = %d\n", *sys_call);
   switch(*sys_call)
   {
   	case SYS_HALT: // 0
@@ -108,34 +180,32 @@ syscall_handler (struct intr_frame *f)
       create_h(f);
   		break;
   	case SYS_REMOVE: // 5
-  		// TODO
+      remove_h(f);
   		break;
   	case SYS_OPEN: // 6
-  		// TODO
+      open_h(f);
   		break;
   	case SYS_FILESIZE: // 7
-  		// TODO
+      filesize_h(f);
   		break;
-  	case SYS_READ: // 8 
-  		// TODO
+  	case SYS_READ: // 8
+      read_h(f);
   		break;
   	case SYS_WRITE: // 9
       write_h(f);
   		break;
   	case SYS_SEEK: // 10
-  		// TODO
+      seek_h(f);
   		break;
   	case SYS_TELL: // 11
-  		// TODO
+      tell_h(f);
   		break;
   	case SYS_CLOSE: // 12
-  		// TODO
+      close_h(f);
   		break;
   	default:
   		break;
   }
-
-  // thread_exit (); // FIXME: Remove this after implementating some system calls
 }
 
 void halt(void)
@@ -171,25 +241,30 @@ bool create_(const char* file, unsigned initial_size)
   return filesys_create(file, initial_size);
 }
 
-bool remove(const char* file UNUSED)
+bool remove_(const char* file UNUSED)
 {
+  // printf("remove called for filename = %s\n", file);
 	// TODO
   return false;
 }
 
-int open(const char* file UNUSED)
+int open_(const char* file UNUSED)
 {
+  // printf("open called for filename = %s\n", file);
 	// TODO
   return -1;
 }
 
-int filesize(int fd)
+int filesize_(int fd UNUSED)
 {
+  // printf("filesize called for fd = %d\n", fd);
 	// TODO
+  return -1;
 }
 
-int read(int fd UNUSED, void* buffer UNUSED, unsigned size UNUSED)
+int read_(int fd UNUSED, void* buffer UNUSED, unsigned size UNUSED)
 {
+  // printf("read called for fd = %d\n", fd);
 	// TODO
   return -1;
 }
@@ -207,17 +282,22 @@ int write(int fd, const void* buffer, unsigned size)
   return -1;
 }
 
-void seek(int fd UNUSED, unsigned position UNUSED)
+void seek_(int fd UNUSED, unsigned position UNUSED)
 {
+  // printf("seek called for fd = %d\n", fd);
 	// TODO
 }
 
-unsigned tell(int fd UNUSED)
+unsigned tell_(int fd UNUSED)
 {
+  // printf("tell called for fd = %d\n", fd);
 	// TODO
+
+  return 0;
 }
 
-void close(int fd UNUSED)
+void close_(int fd UNUSED)
 {
+  // printf("close called for fd = %d\n", fd);
 	// TODO
 }
