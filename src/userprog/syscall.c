@@ -14,7 +14,6 @@
 
 static void syscall_handler (struct intr_frame *);
 
-
 void
 syscall_init (void) 
 {
@@ -223,6 +222,17 @@ void exit_(int status)
 
 pid_t exec_(const char* cmd_line)
 {
+  /*int ret;
+  
+  if (!cmd_line || !is_user_vaddr(cmd_line))
+  {
+    return -1;
+  }
+  lock_acquire(&file_lock);
+  ret = process_execute(cmd_line);
+  lock_release(&file_lock);
+  return ret;*/
+
   return process_execute(cmd_line);
 }
 
@@ -241,24 +251,42 @@ bool create_(const char* file, unsigned initial_size)
   return filesys_create(file, initial_size);
 }
 
-bool remove_(const char* file UNUSED)
+bool remove_(const char* file)
 {
   // printf("remove called for filename = %s\n", file);
 	// TODO
-  return false;
+  if (!file || !is_user_vaddr(file))
+  {
+    exit_ (-1);
+  }
+    
+  return filesys_remove(file);
 }
 
-int open_(const char* file UNUSED)
+int open_(const char* file)
 {
   // printf("open called for filename = %s\n", file);
 	// TODO
-  return -1;
+  if (!file || !is_user_vaddr(file))
+  {
+    exit_(-1);
+  }
+
 }
 
 int filesize_(int fd UNUSED)
 {
   // printf("filesize called for fd = %d\n", fd);
 	// TODO
+  /*struct file *f;
+
+  f = get_file(fd);
+  if (!f)
+  {
+    return -1;
+  }
+
+  return file_length(f);*/
   return -1;
 }
 
@@ -286,13 +314,30 @@ void seek_(int fd UNUSED, unsigned position UNUSED)
 {
   // printf("seek called for fd = %d\n", fd);
 	// TODO
+  /*struct file *f;
+  
+  f = get_file(fd);
+  if (!f)
+  {
+    return -1;
+  }
+
+  file_seek(f, pos);*/
 }
 
 unsigned tell_(int fd UNUSED)
 {
   // printf("tell called for fd = %d\n", fd);
 	// TODO
+  /*struct file *f;
+  
+  f = get_file(fd);
+  if (!f)
+  {
+    return -1;
+  }
 
+  return file_tell(f);*/
   return 0;
 }
 
