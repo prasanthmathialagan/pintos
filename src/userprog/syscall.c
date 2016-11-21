@@ -20,23 +20,28 @@ syscall_init (void)
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
 }
 
+static void check_access(void* sp)
+{
+  if(!is_user_vaddr(sp))
+    exit_(-1);
+}
+
 /*
   Helper method for write system call.
 */
 static void write_h (struct intr_frame *f)
 {
   void* sp = f->esp;
+  check_access(sp + 4);
+  check_access(sp + 8);
+  check_access(sp + 12);
   
   int fd = *(int*)(sp + 4);
-  // printf("fd = %d\n", fd);
   
   uint32_t p = *(uint32_t *)(sp + 8);
-  // printf("%x\n", p);
   char* c = (char*) p;
-  // printf("%s\n", c);
   
   unsigned size = *(unsigned *)(sp + 12);
-  // printf("size = %u\n", size);
   
   int bytes = write (fd, c, size);
   f->eax = bytes;
@@ -45,6 +50,9 @@ static void write_h (struct intr_frame *f)
 static void read_h (struct intr_frame *f)
 {
   void* sp = f->esp;
+  check_access(sp + 4);
+  check_access(sp + 8);
+  check_access(sp + 12);
   
   int fd = *(int*)(sp + 4);
   
@@ -60,6 +68,7 @@ static void read_h (struct intr_frame *f)
 static void exit_h(struct intr_frame *f)
 {
   void* sp = f->esp;
+  check_access(sp + 4);
 
   int status = *(int*)(sp + 4);
   f->eax = status;
@@ -70,6 +79,7 @@ static void exit_h(struct intr_frame *f)
 static void exec_h(struct intr_frame *f)
 {
   void* sp = f->esp;
+  check_access(sp + 4);
 
   uint32_t p = *(uint32_t *)(sp + 4);
   char* args = (char*) p;
@@ -81,6 +91,7 @@ static void exec_h(struct intr_frame *f)
 static void wait_h(struct intr_frame *f)
 {
   void* sp = f->esp;
+  check_access(sp + 4);
 
   pid_t pid = *(pid_t*)(sp + 4);
   int status = wait_(pid);
@@ -90,6 +101,8 @@ static void wait_h(struct intr_frame *f)
 static void create_h(struct intr_frame *f)
 {
   void* sp = f->esp;
+  check_access(sp + 4);
+  check_access(sp + 8);
 
   uint32_t p = *(uint32_t *)(sp + 4);
   char* file_name = (char*) p;
@@ -102,6 +115,7 @@ static void create_h(struct intr_frame *f)
 static void remove_h(struct intr_frame *f)
 {
   void* sp = f->esp;
+  check_access(sp + 4);
 
   uint32_t p = *(uint32_t *)(sp + 4);
   char* file_name = (char*) p;
@@ -113,6 +127,7 @@ static void remove_h(struct intr_frame *f)
 static void open_h(struct intr_frame *f)
 {
   void* sp = f->esp;
+  check_access(sp + 4);
 
   uint32_t p = *(uint32_t *)(sp + 4);
   char* file_name = (char*) p;
@@ -124,6 +139,7 @@ static void open_h(struct intr_frame *f)
 static void filesize_h(struct intr_frame *f)
 {
   void* sp = f->esp;
+  check_access(sp + 4);
 
   int fd = *(int*)(sp + 4);
   int bytes = filesize_(fd);
@@ -133,9 +149,11 @@ static void filesize_h(struct intr_frame *f)
 static void seek_h (struct intr_frame *f)
 {
   void* sp = f->esp;
+  check_access(sp + 4);
+  check_access(sp + 8);
   
   int fd = *(int*)(sp + 4);
-  unsigned position = *(unsigned *)(sp + 12);
+  unsigned position = *(unsigned *)(sp + 8);
   
   seek_ (fd, position);
 }
@@ -143,6 +161,7 @@ static void seek_h (struct intr_frame *f)
 static void tell_h(struct intr_frame *f)
 {
   void* sp = f->esp;
+  check_access(sp + 4);
 
   int fd = *(int*)(sp + 4);
   unsigned position = tell_(fd);
@@ -152,6 +171,7 @@ static void tell_h(struct intr_frame *f)
 static void close_h(struct intr_frame *f)
 {
   void* sp = f->esp;
+  check_access(sp + 4);
 
   int fd = *(int*)(sp + 4);
   close_(fd);
