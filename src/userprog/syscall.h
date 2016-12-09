@@ -2,6 +2,14 @@
 #define USERPROG_SYSCALL_H
 
 #include "lib/user/syscall.h"
+#include "userprog/process.h"
+
+struct fd_process {
+  int fd;
+  tid_t process_id;
+  struct file* file;
+  struct list_elem fd_elem;
+};
 
 void syscall_init (void);
 
