@@ -12,6 +12,7 @@
 
 #include "filesys/file.h"
 #include "filesys/filesys.h"
+#include "devices/input.h"
 
 static struct list fd_file_mapping;
 static struct lock fd_mapping_list_lock;
@@ -276,6 +277,25 @@ bool create_(const char* file, unsigned initial_size)
   return filesys_create (file, initial_size);
 }
 
+static struct file* get_file(int fd)
+{
+  pid_t pid = get_current_pid();
+  lock_acquire(&fd_mapping_list_lock);
+  struct list_elem *e;
+  struct file* file = NULL;
+  for (e = list_begin (&fd_file_mapping); e != list_end (&fd_file_mapping); e = list_next (e))
+  {
+    struct fd_process *fd_process = list_entry (e, struct fd_process, fd_elem);
+    if(fd_process->pid == pid && fd_process->fd == fd)
+    {
+      file = fd_process->file;
+      break;
+    }
+  }
+  lock_release(&fd_mapping_list_lock);
+  return file;
+}
+
 bool remove_(const char* file)
 {
   // printf("remove called for filename = %s\n", file);
@@ -353,25 +373,49 @@ int open_(const char* file)
 
 int filesize_(int fd UNUSED)
 {
-  // printf("filesize called for fd = %d\n", fd);
-	// TODO
-  /*struct file *f;
-
-  f = get_file(fd);
-  if (!f)
+  struct file* file = get_file(fd);
+  if(!file)
   {
     return -1;
   }
 
-  return file_length(f);*/
-  return -1;
+  lock_acquire(&fd_mapping_list_lock);
+  int size = file_length(file);
+  lock_release(&fd_mapping_list_lock);
+
+  return size;
 }
 
-int read_(int fd UNUSED, void* buffer UNUSED, unsigned size UNUSED)
+int read_(int fd, void* buffer, unsigned size)
 {
-  // printf("read called for fd = %d\n", fd);
-	// TODO
-  return -1;
+  if (!is_user_vaddr(buffer))
+  {
+    exit_(-1);
+  }
+
+  int bytes = -1;
+  
+  // Read from keyboard
+  if(fd == STDIN_FILENO)
+  {
+    uint8_t* buf = (uint8_t*) buffer;
+    for(bytes = 0; bytes < (int) size; bytes++)
+    {
+      buf[bytes] = input_getc();
+    }
+  }
+  else
+  {
+    struct file* file = get_file(fd);
+    if(file)
+    {
+      lock_acquire(&fd_mapping_list_lock);
+      bytes = file_read(file, buffer, size);
+      lock_release(&fd_mapping_list_lock);
+    }
+  }
+
+  return bytes;
 }
 
 int write(int fd, const void* buffer, unsigned size)
@@ -383,8 +427,17 @@ int write(int fd, const void* buffer, unsigned size)
     return size;
   }
 
-	// TODO
-  return -1;
+  struct file* file = get_file(fd);
+  if(!file)
+  {
+    return -1;
+  }
+
+  lock_acquire(&fd_mapping_list_lock);
+  int bytes = file_write(file, buffer, size);
+	lock_release(&fd_mapping_list_lock);
+
+  return bytes;
 }
 
 void seek_(int fd UNUSED, unsigned position UNUSED)
