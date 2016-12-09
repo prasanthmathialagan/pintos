@@ -71,6 +71,7 @@ process_execute (const char *file_name)
 
     p->alive = true;
     p->status = -1;
+    p->fd_counter = 2;
 
     lock_init(&p->lock);
     cond_init(&p->condition);
@@ -235,6 +236,27 @@ struct process* get_process(pid_t pid)
   }
   lock_release(&proc_list_lock);
   return p;
+}
+
+int get_and_increment_fd(pid_t pid)
+{
+  struct process* p = get_process(pid);
+  if(!p)
+  {
+    return -1;
+  }
+
+  // Locking to avoid modification of struct process by multiple threads. Is this necessary??
+  lock_acquire(&proc_list_lock);
+  int fd = p->fd_counter++;
+  lock_release(&proc_list_lock);
+  return fd;
+}
+
+pid_t get_current_pid()
+{
+  struct process* p = get_process(thread_current()->tid);
+  return p == NULL ? -1 : p->pid;
 }
 
 /* Free the current process's resources. */

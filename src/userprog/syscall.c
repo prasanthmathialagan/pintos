@@ -8,6 +8,7 @@
 #include "lib/kernel/console.h"
 #include "lib/string.h"
 #include "devices/shutdown.h"
+#include "threads/malloc.h"
 
 #include "filesys/file.h"
 #include "filesys/filesys.h"
@@ -271,26 +272,8 @@ bool create_(const char* file, unsigned initial_size)
   {
     exit_(-1);
   }
-  //use the fd_counter to increment the fd number for this process
-  lock_acquire(&fd_mapping_list_lock);
-  struct fd_process *new_fd_process = malloc(sizeof(struct fd_process));
-  struct list_elem *each_fd_mapping;
-  bool result = false;
 
-  //get the current thread id as there is 1:1 mapping between process and thread
-  struct thread *cur_thread = thread_current ();
-  new_fd_process->process_id = cur_thread->tid;
-  new_fd_process->fd = 1;
-  
-  //TODO add file info
-  result = filesys_create (file, initial_size);
-  if (!result) {
-      lock_release(&fd_mapping_list_lock);
-      exit_(-1);
-  }
-  list_push_back (&fd_file_mapping, &new_fd_process->fd_elem);
-  lock_release(&fd_mapping_list_lock);
-  return result;
+  return filesys_create (file, initial_size);
 }
 
 bool remove_(const char* file)
@@ -308,7 +291,7 @@ bool remove_(const char* file)
   
   //get the current thread id as there is 1:1 mapping between process and thread
   struct thread *cur_thread = thread_current ();
-  matched_fd_mapping->process_id = cur_thread->tid;
+  matched_fd_mapping->pid = cur_thread->tid;
   matched_fd_mapping->fd = 0;
   bool mapping_found = false;
   for (each_fd_mapping = list_begin (&fd_file_mapping); each_fd_mapping != list_end (&fd_file_mapping);
@@ -316,7 +299,7 @@ bool remove_(const char* file)
   {
     //Find the highest fd mapping number for the current process.
     struct fd_process *fd_mapping_data = list_entry (each_fd_mapping, struct fd_process, fd_elem);
-    if (fd_mapping_data->process_id == matched_fd_mapping->process_id && (matched_fd_mapping->fd < fd_mapping_data->fd)) {
+    if (fd_mapping_data->pid == matched_fd_mapping->pid && (matched_fd_mapping->fd < fd_mapping_data->fd)) {
       matched_fd_mapping = fd_mapping_data;//capture the current reference
       mapping_found = true;
       //break;
@@ -338,46 +321,34 @@ bool remove_(const char* file)
 
 int open_(const char* file)
 {
-  // printf("open called for filename = %s\n", file);
-	// TODO
   if (!file || !is_user_vaddr(file))
   {
     exit_(-1);
   }
-  printf("Trying open ***");//TODO remvoe this
 
-  lock_acquire(&fd_mapping_list_lock);
-  struct fd_process *new_fd_process = malloc(sizeof(struct fd_process));
-  struct list_elem *each_fd_mapping;
-  struct file *actual_file = NULL;
-  
-  //get the current thread id as there is 1:1 mapping between process and thread
-  struct thread *cur_thread = thread_current ();
-  new_fd_process->process_id = cur_thread->tid;
-  new_fd_process->fd = 0;
-  bool mapping_found = false;
-  for (each_fd_mapping = list_begin (&fd_file_mapping); each_fd_mapping != list_end (&fd_file_mapping);
-       each_fd_mapping = list_next (each_fd_mapping))
-    {
-      //Find the highest fd mapping number for the current process.
-      struct fd_process *fd_mapping_data = list_entry (each_fd_mapping, struct fd_process, fd_elem);
-      if (fd_mapping_data->process_id == new_fd_process->process_id && (new_fd_process->fd < fd_mapping_data->fd)) {
-        new_fd_process->fd = fd_mapping_data->fd + 1;
-        mapping_found = true;
-        //break;
-      }
-    }
-    if (!mapping_found) {
-        new_fd_process->fd = 1;
-    }
-    actual_file = filesys_open (file);
-    if (actual_file == NULL) {
-        lock_release(&fd_mapping_list_lock);
-        exit_(-1);
-    }
-    list_push_back (&fd_file_mapping, &new_fd_process->fd_elem);
-    lock_release(&fd_mapping_list_lock);
-    return true;
+  struct file* f = filesys_open (file);
+  if (!f) 
+  {  
+    return -1; // Returning -1 because some test cases do not like exit(-1)
+  }
+
+  pid_t pid = get_current_pid();
+  int fd = get_and_increment_fd(pid);
+  if(fd < 2)
+  {
+    exit_(-1);
+  }
+
+  struct fd_process *fd_process = malloc(sizeof(struct fd_process));
+  fd_process->fd = fd;
+  fd_process->pid = pid;
+  fd_process->file = f;
+
+  lock_acquire(&fd_mapping_list_lock);  
+  list_push_back (&fd_file_mapping, &fd_process->fd_elem);
+  lock_release(&fd_mapping_list_lock);
+
+  return fd;
 }
 
 int filesize_(int fd UNUSED)

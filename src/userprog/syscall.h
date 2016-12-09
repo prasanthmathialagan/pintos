@@ -6,7 +6,7 @@
 
 struct fd_process {
   int fd;
-  tid_t process_id;
+  pid_t pid;
   struct file* file;
   struct list_elem fd_elem;
 };

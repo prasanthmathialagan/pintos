@@ -15,11 +15,15 @@ struct process
 	struct lock lock;
 	struct condition condition;
 	int status;
+	// Counter for assigning fd numbers. It must be initialized to 2 (0 and 1 for standard input/output)
+	int fd_counter;
 	struct list_elem elem;
 };
 
 void process_init(void);
 struct process* get_process(pid_t pid);
+pid_t get_current_pid(void);
+int get_and_increment_fd(pid_t pid);
 
 tid_t process_execute (const char *file_name);
 int process_wait (tid_t);
