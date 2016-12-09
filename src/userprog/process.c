@@ -26,6 +26,13 @@ static struct lock proc_list_lock;
 static thread_func start_process NO_RETURN;
 static bool load (const char *cmdline, void (**eip) (void), void **esp);
 
+struct process_exec_data
+{
+  char* command;
+  bool status; // Status from load
+  struct semaphore start_signal;
+};
+
 void process_init()
 {
   list_init(&proc_list);
@@ -49,8 +56,12 @@ process_execute (const char *file_name)
     return TID_ERROR;
   strlcpy (fn_copy, file_name, PGSIZE);
 
+  struct process_exec_data* data = malloc(sizeof(struct process_exec_data));
+  data->command = fn_copy;
+  sema_init(&data->start_signal, 0);
+
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create (file_name, PRI_DEFAULT, start_process, fn_copy);
+  tid = thread_create (file_name, PRI_DEFAULT, start_process, data);
   if (tid == TID_ERROR)
   {
     palloc_free_page (fn_copy);
@@ -72,6 +83,7 @@ process_execute (const char *file_name)
     p->alive = true;
     p->status = -1;
     p->fd_counter = 2;
+    p->executable = NULL;
 
     lock_init(&p->lock);
     cond_init(&p->condition);
@@ -79,6 +91,22 @@ process_execute (const char *file_name)
     lock_acquire(&proc_list_lock);
     list_push_back(&proc_list, &p->elem);
     lock_release(&proc_list_lock);
+
+    sema_down(&data->start_signal);
+    if(data->status == false)
+    {
+      tid = TID_ERROR;
+    }
+    else
+    {
+      // Is the lock necessary??
+      lock_acquire(&proc_list_lock);
+      p->executable = filesys_open(p->name);
+      file_deny_write(p->executable);
+      lock_release(&proc_list_lock);
+    }
+
+    free(data);
   }
 
   return tid;
@@ -151,9 +179,11 @@ parse_cla (char *file_name, void **stack_pointer)
 /* A thread function that loads a user process and starts it
    running. */
 static void
-start_process (void *file_name_)
+start_process (void *data)
 {
-  char *file_name = file_name_;
+  struct process_exec_data* d = (struct process_exec_data*) data;
+
+  char *file_name = d->command;
   struct intr_frame if_;
   bool success;
 
@@ -172,12 +202,12 @@ start_process (void *file_name_)
   char *save_ptr;
   char *file_name_parsed = strtok_r (fn_copy, " ", &save_ptr);
   success = load (file_name_parsed, &if_.eip, &if_.esp);
-  // void* initial_sp = if_.esp;
-  // print_stack(initial_sp, 10, true);
+  d->status = success;
+  sema_up(&d->start_signal);
+
   if (success) {
       parse_cla (fn_copy2, &if_.esp);
   }
-  // print_stack(initial_sp, 15, true);
 
   /* If load failed, quit. */
   palloc_free_page (file_name);
@@ -296,14 +326,14 @@ process_exit (void)
     }
   }
 
-  if(!p)
-  {
-    printf("There is no process with pid = %d\n", cur->tid);
-  }
-  else
+  if(p)
   {
     list_remove(&p->elem);
     p->alive = false;
+    if(p->executable)
+    {
+      file_close(p->executable);
+    }
   }
 
   lock_release(&proc_list_lock);

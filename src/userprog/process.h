@@ -11,6 +11,7 @@ struct process
 {
 	pid_t pid;
 	char name[20];
+	struct file* executable;
 	bool alive;
 	struct lock lock;
 	struct condition condition;
