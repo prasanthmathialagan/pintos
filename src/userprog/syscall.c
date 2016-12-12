@@ -304,39 +304,7 @@ bool remove_(const char* file)
   {
     exit_ (-1);
   }
-  lock_acquire(&fd_mapping_list_lock);
-  struct fd_process *matched_fd_mapping = malloc(sizeof(struct fd_process));
-  struct list_elem *each_fd_mapping;
-  bool result = false;
-  
-  //get the current thread id as there is 1:1 mapping between process and thread
-  struct thread *cur_thread = thread_current ();
-  matched_fd_mapping->pid = cur_thread->tid;
-  matched_fd_mapping->fd = 0;
-  bool mapping_found = false;
-  for (each_fd_mapping = list_begin (&fd_file_mapping); each_fd_mapping != list_end (&fd_file_mapping);
-       each_fd_mapping = list_next (each_fd_mapping))
-  {
-    //Find the highest fd mapping number for the current process.
-    struct fd_process *fd_mapping_data = list_entry (each_fd_mapping, struct fd_process, fd_elem);
-    if (fd_mapping_data->pid == matched_fd_mapping->pid && (matched_fd_mapping->fd < fd_mapping_data->fd)) {
-      matched_fd_mapping = fd_mapping_data;//capture the current reference
-      mapping_found = true;
-      //break;
-    }
-  }
-  if (!mapping_found) {
-      //TODO handle this properly 
-      exit_ (-1);
-  }
-  result = filesys_remove (file);
-  if (!result) {
-      lock_release(&fd_mapping_list_lock);
-      exit_(-1);
-  }
-  list_remove (&matched_fd_mapping->fd_elem);
-  lock_release(&fd_mapping_list_lock);
-  return result;
+  return filesys_remove (file);
 }
 
 int open_(const char* file)
@@ -444,7 +412,7 @@ void seek_(int fd UNUSED, unsigned position UNUSED)
 {
   // printf("seek called for fd = %d\n", fd);
 	// TODO
-  /*struct file *f;
+  struct file *f;
   
   f = get_file(fd);
   if (!f)
@@ -452,14 +420,14 @@ void seek_(int fd UNUSED, unsigned position UNUSED)
     return -1;
   }
 
-  file_seek(f, pos);*/
+  file_seek(f, position);
 }
 
 unsigned tell_(int fd UNUSED)
 {
   // printf("tell called for fd = %d\n", fd);
 	// TODO
-  /*struct file *f;
+  struct file *f;
   
   f = get_file(fd);
   if (!f)
@@ -467,12 +435,45 @@ unsigned tell_(int fd UNUSED)
     return -1;
   }
 
-  return file_tell(f);*/
-  return 0;
+  return file_tell(f);
+//  return 0;
+}
+
+static void remove_fd(int fd)
+{
+  pid_t pid = get_current_pid();
+  lock_acquire(&fd_mapping_list_lock);
+  struct list_elem *e;
+  struct list_elem *to_be_removed;
+  for (e = list_begin (&fd_file_mapping); e != list_end (&fd_file_mapping); e = list_next (e))
+  {
+    struct fd_process *fd_process = list_entry (e, struct fd_process, fd_elem);
+    if(fd_process->pid == pid && fd_process->fd == fd)
+    {
+      to_be_removed = e;
+      //decrement fd counter
+      fd_process->fd = fd -1;
+      break;
+    }
+  }
+  //remove fd from mapping list
+  if (to_be_removed) {
+    list_remove (to_be_removed);
+  }
+
+  lock_release(&fd_mapping_list_lock);
 }
 
 void close_(int fd UNUSED)
 {
   // printf("close called for fd = %d\n", fd);
 	// TODO
+  struct file *f;
+  
+  f = get_file(fd);
+  if (f)
+  {
+    file_close (f);
+    remove_fd(fd);
+  }
 }
