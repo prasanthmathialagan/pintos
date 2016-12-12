@@ -273,8 +273,10 @@ bool create_(const char* file, unsigned initial_size)
   {
     exit_(-1);
   }
-
-  return filesys_create (file, initial_size);
+  lock_acquire(&fd_mapping_list_lock);
+  bool result  = filesys_create (file, initial_size);
+  lock_release(&fd_mapping_list_lock);
+  return result;
 }
 
 static struct file* get_file(int fd)
@@ -313,10 +315,12 @@ int open_(const char* file)
   {
     exit_(-1);
   }
-
+  lock_acquire(&fd_mapping_list_lock); 
   struct file* f = filesys_open (file);
+  
   if (!f) 
   {  
+    lock_release(&fd_mapping_list_lock);
     return -1; // Returning -1 because some test cases do not like exit(-1)
   }
 
@@ -324,6 +328,7 @@ int open_(const char* file)
   int fd = get_and_increment_fd(pid);
   if(fd < 2)
   {
+    lock_release(&fd_mapping_list_lock);
     exit_(-1);
   }
 
@@ -332,7 +337,6 @@ int open_(const char* file)
   fd_process->pid = pid;
   fd_process->file = f;
 
-  lock_acquire(&fd_mapping_list_lock);  
   list_push_back (&fd_file_mapping, &fd_process->fd_elem);
   lock_release(&fd_mapping_list_lock);
 
@@ -374,13 +378,13 @@ int read_(int fd, void* buffer, unsigned size)
   }
   else
   {
+    lock_acquire(&fd_mapping_list_lock);
     struct file* file = get_file(fd);
     if(file)
     {
-      lock_acquire(&fd_mapping_list_lock);
-      bytes = file_read(file, buffer, size);
-      lock_release(&fd_mapping_list_lock);
+      bytes = file_read(file, buffer, size);  
     }
+    lock_release(&fd_mapping_list_lock);
   }
 
   return bytes;
@@ -419,8 +423,9 @@ void seek_(int fd UNUSED, unsigned position UNUSED)
   {
     return -1;
   }
-
+  lock_acquire(&fd_mapping_list_lock);
   file_seek(f, position);
+  lock_release(&fd_mapping_list_lock);
 }
 
 unsigned tell_(int fd UNUSED)
@@ -434,9 +439,10 @@ unsigned tell_(int fd UNUSED)
   {
     return -1;
   }
-
-  return file_tell(f);
-//  return 0;
+  lock_acquire(&fd_mapping_list_lock);
+  int tell = file_tell(f);
+  lock_release(&fd_mapping_list_lock);
+  return tell;
 }
 
 static void remove_fd(int fd)

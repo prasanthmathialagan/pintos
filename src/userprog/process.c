@@ -81,7 +81,7 @@ process_execute (const char *file_name)
     p->name[i] = '\0';
 
     p->alive = true;
-    p->status = -1;
+    p->status = 0;
     p->fd_counter = 2;
     p->executable = NULL;
 
